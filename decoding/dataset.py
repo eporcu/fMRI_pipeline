@@ -4,7 +4,22 @@ import numpy as np
 
 
 class GetData:
-    """ """
+    """Creates a dataset for running
+    sklearn analyses. It needs BIDS compliant data.
+    Parameters
+    ----------
+
+    tasks : list of strings
+    labels : dict keys are labels names,
+             values are int (one for each distinct label)
+    groups : list of strings
+
+    Returns
+    -------
+
+    dataset : dict containing as keys tasks, labels and groups
+              as values the corresponding lists.
+    """
 
     def __init__(self, tasks, labels, group_filter=None):
         self.tasks = tasks
@@ -12,14 +27,14 @@ class GetData:
         self.group_filter = group_filter
 
     def _get_bold(self, data_dir):
-        """ """
+        """gets the functional data, by leveraging on tasks"""
         files = []
         for task in self.tasks:
             files.extend(glob(join(data_dir, f"*{task}*.nii.gz")))
         return np.array(files)
 
     def _get_labels(self, files):
-        """ """
+        """organizes labels"""
 
         return np.array(
             [
@@ -31,7 +46,8 @@ class GetData:
         )
 
     def _get_groups(self, files):
-        """ """
+        """organizes groups"""
+
         return np.array(
             [
                 n + 1
@@ -42,7 +58,8 @@ class GetData:
         )
 
     def __call__(self, data_dir):
-        """ """
+        """returns the dataset dictionary"""
+
         files = self._get_bold(data_dir)
         labels = self._get_labels(files)
         groups = self._get_groups(files)
