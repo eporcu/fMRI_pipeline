@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-TODO: save also permutations schemes 
+Script for running nilearn searchlight for classification (sklearn).
+It allows to run permutations on training data, which by default
+is not possible on nilearn searchlight.
 """
 import argparse
 from os.path import join
@@ -10,21 +12,6 @@ import nilearn.decoding
 import numpy as np
 from permute_labels import PermLabels
 from sklearn.model_selection import LeaveOneGroupOut
-
-parser = argparse.ArgumentParser(add_help=True)
-parser.add_argument("-d", "--data_dir", metavar="PATH", required=True)
-parser.add_argument("-o", "--output_dir", type=str, required=False)
-parser.add_argument("-t", "--tasks", type=str, nargs="+", required=True)
-parser.add_argument("-l", "--labels", type=str, nargs="+", required=True)
-parser.add_argument("-g", "--groups", type=str, nargs="+", required=True)
-parser.add_argument("-m", "--mask", type=str, required=True)
-parser.add_argument("-r", "--radius", type=float, required=True)
-parser.add_argument("-s", "--subj", type=str, required=True)
-parser.add_argument("-p", "--permutation", type=int, required=False)
-parser.add_argument(
-    "-e", "--estimator", const="svc", nargs="?", type=str, default="svc"
-)
-args = parser.parse_args()
 
 
 def np2nii(img, scores, filename):
@@ -50,6 +37,22 @@ def np2nii(img, scores, filename):
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("-d", "--data_dir", metavar="PATH", required=True)
+    parser.add_argument("-o", "--output_dir", type=str, required=False)
+    parser.add_argument("-t", "--tasks", type=str, nargs="+", required=True)
+    parser.add_argument("-l", "--labels", type=str, nargs="+", required=True)
+    parser.add_argument("-g", "--groups", type=str, nargs="+", required=True)
+    parser.add_argument("-m", "--mask", type=str, required=True)
+    parser.add_argument("-r", "--radius", type=float, required=True)
+    parser.add_argument("-s", "--subj", type=str, required=True)
+    parser.add_argument("-p", "--permutation", type=int, required=False)
+    parser.add_argument(
+        "-e", "--estimator", const="svc", nargs="?", type=str, default="svc"
+    )
+    args = parser.parse_args()
+
     # get the dataset
     dataset = GetData(
         tasks=args.tasks,
@@ -65,11 +68,12 @@ if __name__ == "__main__":
     if args.permutation:
         print("you are now running the searchlight for the chance maps")
         cv = list(cv.split(data["data"], data["labels"], data["groups"]))
+
         # permute labels
         permutation = PermLabels(
             data["labels"], cv, data["groups"], random_state=int(args.subj)
         )
-        print(permutation())
+
         for fold, ((train, test), perm) in enumerate(zip(cv, permutation())):
             print(f"fold number: {fold + 1}")
             print(f"train indices: {train} - test indices: {test}")
