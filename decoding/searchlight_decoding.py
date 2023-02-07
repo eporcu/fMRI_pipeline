@@ -49,42 +49,66 @@ def np2nii(img, scores, filename):
     return nii_file
 
 
-# get the dataset
-dataset = GetData(
-    tasks=args.tasks,
-    labels={"h_vs_h": 1, "h_vs_u": 2, "u_vs_u": 3},
-    group_filter=["run_1", "run_2", "run_3", "run_4", "run_5"],
-)
-data = dataset(args.data_dir)
-print(data)
-# instantiate the cross validation
-
-cv = LeaveOneGroupOut()
-
-if args.permutation:
-    print("you are now running the searchlight for the chance maps")
-    cv = list(cv.split(data["data"], data["labels"], data["groups"]))
-    # permute labels
-    permutation = PermLabels(
-        data["labels"], cv, data["groups"], random_state=int(args.subj)
+if __name__ == "__main__":
+    # get the dataset
+    dataset = GetData(
+        tasks=args.tasks,
+        labels={l: n + 1 for n, l in enumerate(args.labels)},
+        group_filter=args.groups,
     )
-    print(permutation())
-    for fold, ((train, test), perm) in enumerate(zip(cv, permutation())):
-        print(f"fold number: {fold + 1}")
-        print(f"train indices: {train} - test indices: {test}")
-        print(
-            (
-                f"non-permuted train labels: {data['labels'][train]}"
-                f" permuted train labels: {perm}"
-            )
+    data = dataset(args.data_dir)
+    print(data)
+
+    # instantiate the cross validation
+    cv = LeaveOneGroupOut()
+
+    if args.permutation:
+        print("you are now running the searchlight for the chance maps")
+        cv = list(cv.split(data["data"], data["labels"], data["groups"]))
+        # permute labels
+        permutation = PermLabels(
+            data["labels"], cv, data["groups"], random_state=int(args.subj)
         )
+        print(permutation())
+        for fold, ((train, test), perm) in enumerate(zip(cv, permutation())):
+            print(f"fold number: {fold + 1}")
+            print(f"train indices: {train} - test indices: {test}")
+            print(
+                (
+                    f"non-permuted train labels: {data['labels'][train]}"
+                    f" permuted train labels: {perm}"
+                )
+            )
 
-        labels = np.copy(data["labels"])
-        print(data["labels"])
-        print("length train", len(train), "length perm", len(perm))
-        labels[train] = perm
-        print(labels)
+            labels = np.copy(data["labels"])
+            print(data["labels"])
+            print("length train", len(train), "length perm", len(perm))
+            labels[train] = perm
+            print(labels)
 
+            SL = nilearn.decoding.SearchLight(
+                mask_img=args.mask,
+                # process_mask_img=process_mask_img,
+                radius=args.radius,
+                estimator=args.estimator,
+                n_jobs=1,
+                verbose=1,
+                cv=[(train, test)],
+                scoring="accuracy",
+            )
+            SL.fit(data["data"], labels, data["groups"])
+            scores = SL.scores_
+            print(np.mean(scores[scores > 0]))
+            output = join(
+                f"{args.output_dir}",
+                (
+                    f"sub-{args.subj}_{args.tasks[0]}_{args.tasks[1]}_"
+                    f"radius_{int(args.radius)}_perm_"
+                    f"{str(args.permutation)}_fold_{fold+1}"
+                ),
+            )
+            np.save(f"{output}.npy", scores)
+    else:
         SL = nilearn.decoding.SearchLight(
             mask_img=args.mask,
             # process_mask_img=process_mask_img,
@@ -92,41 +116,18 @@ if args.permutation:
             estimator=args.estimator,
             n_jobs=1,
             verbose=1,
-            cv=[(train, test)],
+            cv=cv,
             scoring="accuracy",
         )
-        SL.fit(data["data"], labels, data["groups"])
+        SL.fit(data["data"], data["labels"], data["groups"])
         scores = SL.scores_
-        print(np.mean(scores[scores > 0]))
         output = join(
             f"{args.output_dir}",
             (
-                f"sub-{args.subj}_{args.tasks[0]}_{args.tasks[1]}_"
-                f"radius_{int(args.radius)}_perm_"
-                f"{str(args.permutation)}_fold_{fold+1}"
+                f"sub-{args.subj}_{args.tasks[0]}_"
+                f"{args.tasks[1]}_radius_{int(args.radius)}"
             ),
         )
+        print(scores[scores > 0])
         np.save(f"{output}.npy", scores)
-else:
-    SL = nilearn.decoding.SearchLight(
-        mask_img=args.mask,
-        # process_mask_img=process_mask_img,
-        radius=args.radius,
-        estimator=args.estimator,
-        n_jobs=1,
-        verbose=1,
-        cv=cv,
-        scoring="accuracy",
-    )
-    SL.fit(data["data"], data["labels"], data["groups"])
-    scores = SL.scores_
-    output = join(
-        f"{args.output_dir}",
-        (
-            f"sub-{args.subj}_{args.tasks[0]}_"
-            f"{args.tasks[1]}_radius_{int(args.radius)}"
-        ),
-    )
-    print(scores[scores > 0])
-    np.save(f"{output}.npy", scores)
-    np2nii(args.mask, scores, f"{output}.nii.gz")
+        np2nii(args.mask, scores, f"{output}.nii.gz")
