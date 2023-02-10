@@ -43,9 +43,7 @@ class Searchlight:
 
     def sphere(self, center):
         """
-        Computes sphere indices.
-        Note: This spere implementation
-        follows pymvpa method.
+        Computes sphere coordinates.
 
         Parameters
         ----------
